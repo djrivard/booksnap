@@ -6,12 +6,23 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { BookOpen, Sparkles, Target, CheckCircle, Star, Clock, Trash2 } from "lucide-react"
+import { BookOpen, Sparkles, Target, CheckCircle, Star, Clock, Trash2, Save, BookMarked } from "lucide-react"
 import { summarizeBook, type BookSummary } from "./actions/summarize-book"
+import { saveSummary, getUserSummaries, deleteSummary } from "./actions/book-summaries"
+import { useAuth } from "@/context/auth-context"
+import { UserProfile } from "@/components/user-profile"
+import { AuthModal } from "@/components/auth/auth-modal"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 export default function BookSummaryApp() {
+  const { user, isLoading: isAuthLoading } = useAuth()
   const [summary, setSummary] = useState<BookSummary | null>(null)
   const [recentSummaries, setRecentSummaries] = useState<BookSummary[]>([])
+  const [savedSummaries, setSavedSummaries] = useState<(BookSummary & { createdAt: string })[]>([])
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [activeTab, setActiveTab] = useState<string>("recent")
+
   const [state, action, isPending] = useActionState(
     async (prevState: any, formData: FormData) => {
       try {
@@ -46,6 +57,22 @@ export default function BookSummaryApp() {
     }
   }, [])
 
+  // Load saved summaries from database when user is authenticated
+  useEffect(() => {
+    if (user) {
+      const fetchSavedSummaries = async () => {
+        try {
+          const summaries = await getUserSummaries(user.id)
+          setSavedSummaries(summaries)
+        } catch (error) {
+          console.error("Failed to fetch saved summaries:", error)
+        }
+      }
+
+      fetchSavedSummaries()
+    }
+  }, [user])
+
   const loadSummary = (bookSummary: BookSummary) => {
     setSummary(bookSummary)
     window.scrollTo({ top: 0, behavior: "smooth" })
@@ -60,6 +87,43 @@ export default function BookSummaryApp() {
     const filtered = recentSummaries.filter((s) => !(s.title === titleToRemove && s.author === authorToRemove))
     setRecentSummaries(filtered)
     localStorage.setItem("recentSummaries", JSON.stringify(filtered))
+  }
+
+  const handleSaveSummary = async () => {
+    if (!user || !summary) return
+
+    setIsSaving(true)
+    try {
+      await saveSummary(summary, user.id)
+      // Refresh saved summaries
+      const summaries = await getUserSummaries(user.id)
+      setSavedSummaries(summaries)
+    } catch (error) {
+      console.error("Failed to save summary:", error)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleDeleteSavedSummary = async (title: string, author: string) => {
+    if (!user) return
+
+    try {
+      await deleteSummary(user.id, title, author)
+      // Refresh saved summaries
+      const summaries = await getUserSummaries(user.id)
+      setSavedSummaries(summaries)
+    } catch (error) {
+      console.error("Failed to delete summary:", error)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    })
   }
 
   return (
@@ -77,12 +141,16 @@ export default function BookSummaryApp() {
       {/* Content */}
       <div className="relative z-10">
         <div className="container mx-auto px-4 py-8">
-          {/* Header */}
-          <div className="text-center mb-12">
-            <div className="flex items-center justify-center gap-3 mb-4">
+          {/* Header with Auth */}
+          <div className="flex justify-between items-center mb-12">
+            <div className="flex items-center gap-3">
               <BookOpen className="h-10 w-10 text-indigo-600" />
               <h1 className="text-4xl font-bold text-white drop-shadow-lg">BookSnap</h1>
             </div>
+            <UserProfile />
+          </div>
+
+          <div className="text-center mb-12">
             <p className="text-xl text-white/90 max-w-2xl mx-auto drop-shadow-lg">
               Get instant book summaries. Discover insights, main points and takeaways from any book.
             </p>
@@ -162,9 +230,32 @@ export default function BookSummaryApp() {
                       <CardTitle className="text-2xl mb-2">{summary.title}</CardTitle>
                       <CardDescription className="text-indigo-100 text-lg">by {summary.author}</CardDescription>
                     </div>
-                    <div className="flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full">
-                      <Star className="h-4 w-4 fill-current" />
-                      <span className="font-semibold">{summary.rating}/10</span>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1 bg-white/20 px-3 py-1 rounded-full">
+                        <Star className="h-4 w-4 fill-current" />
+                        <span className="font-semibold">{summary.rating}/10</span>
+                      </div>
+                      {user && (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSaveSummary}
+                          disabled={isSaving}
+                          className="bg-white/20 hover:bg-white/30 text-white border-white/30"
+                        >
+                          {isSaving ? (
+                            <>
+                              <Save className="mr-1 h-4 w-4 animate-pulse" />
+                              Saving...
+                            </>
+                          ) : (
+                            <>
+                              <Save className="mr-1 h-4 w-4" />
+                              Save
+                            </>
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </div>
                 </CardHeader>
@@ -257,65 +348,149 @@ export default function BookSummaryApp() {
                 </Card>
               </div>
 
-              {/* Recent Summaries */}
-              {recentSummaries.length > 0 && (
-                <Card className="max-w-4xl mx-auto mb-8 shadow-lg border-0 bg-white/80 backdrop-blur-sm">
-                  <CardHeader>
-                    <div className="flex items-center justify-between">
-                      <CardTitle className="flex items-center gap-2">
-                        <Clock className="h-5 w-5 text-indigo-600" />
-                        Recent Summaries
-                      </CardTitle>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={clearRecentSummaries}
-                        className="text-gray-500 hover:text-red-600"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                        Clear All
-                      </Button>
-                    </div>
-                    <CardDescription>Click on any book to view its summary again</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-3">
-                      {recentSummaries.map((bookSummary, index) => (
-                        <div
-                          key={`${bookSummary.title}-${bookSummary.author}-${index}`}
-                          className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors cursor-pointer group"
-                          onClick={() => loadSummary(bookSummary)}
-                        >
-                          <div className="flex items-center gap-3 flex-1">
-                            <div className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
-                              <BookOpen className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <h4 className="font-semibold text-gray-900 truncate">{bookSummary.title}</h4>
-                              <p className="text-sm text-gray-600 truncate">by {bookSummary.author}</p>
-                            </div>
-                            <div className="flex items-center gap-1 bg-yellow-100 px-2 py-1 rounded-full">
-                              <Star className="h-3 w-3 fill-current text-yellow-600" />
-                              <span className="text-xs font-semibold text-yellow-700">{bookSummary.rating}/10</span>
-                            </div>
+              {/* Summaries Tabs */}
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BookMarked className="h-5 w-5 text-indigo-600" />
+                    Your Summaries
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <Tabs defaultValue="recent" value={activeTab} onValueChange={setActiveTab}>
+                    <TabsList className="grid w-full grid-cols-2 mb-4">
+                      <TabsTrigger value="recent">Recent</TabsTrigger>
+                      <TabsTrigger value="saved" disabled={!user}>
+                        {user ? "Saved" : "Sign in to save"}
+                      </TabsTrigger>
+                    </TabsList>
+
+                    <TabsContent value="recent">
+                      {recentSummaries.length > 0 ? (
+                        <div className="space-y-4">
+                          <div className="flex justify-between items-center">
+                            <p className="text-sm text-gray-500">Recently generated summaries</p>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={clearRecentSummaries}
+                              className="text-gray-500 hover:text-red-600"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Clear All
+                            </Button>
                           </div>
+                          <div className="grid gap-3">
+                            {recentSummaries.map((bookSummary, index) => (
+                              <div
+                                key={`${bookSummary.title}-${bookSummary.author}-${index}`}
+                                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors cursor-pointer group"
+                                onClick={() => loadSummary(bookSummary)}
+                              >
+                                <div className="flex items-center gap-3 flex-1">
+                                  <div className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                                    <BookOpen className="h-4 w-4" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-gray-900 truncate">{bookSummary.title}</h4>
+                                    <p className="text-sm text-gray-600 truncate">by {bookSummary.author}</p>
+                                  </div>
+                                  <div className="flex items-center gap-1 bg-yellow-100 px-2 py-1 rounded-full">
+                                    <Star className="h-3 w-3 fill-current text-yellow-600" />
+                                    <span className="text-xs font-semibold text-yellow-700">
+                                      {bookSummary.rating}/10
+                                    </span>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    removeSummary(bookSummary.title, bookSummary.author)
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-center py-8">
+                          <Clock className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                          <h3 className="text-lg font-medium text-gray-900">No recent summaries</h3>
+                          <p className="text-gray-500 mt-1">Summaries you generate will appear here</p>
+                        </div>
+                      )}
+                    </TabsContent>
+
+                    <TabsContent value="saved">
+                      {user ? (
+                        savedSummaries.length > 0 ? (
+                          <div className="grid gap-3">
+                            {savedSummaries.map((bookSummary, index) => (
+                              <div
+                                key={`${bookSummary.title}-${bookSummary.author}-${index}`}
+                                className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-100 hover:bg-gray-100 transition-colors cursor-pointer group"
+                                onClick={() => loadSummary(bookSummary)}
+                              >
+                                <div className="flex items-center gap-3 flex-1">
+                                  <div className="flex-shrink-0 w-8 h-8 bg-indigo-600 text-white rounded-full flex items-center justify-center text-sm font-semibold">
+                                    <BookMarked className="h-4 w-4" />
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <h4 className="font-semibold text-gray-900 truncate">{bookSummary.title}</h4>
+                                    <p className="text-sm text-gray-600 truncate">by {bookSummary.author}</p>
+                                  </div>
+                                  <div className="flex flex-col items-end">
+                                    <div className="flex items-center gap-1 bg-yellow-100 px-2 py-1 rounded-full mb-1">
+                                      <Star className="h-3 w-3 fill-current text-yellow-600" />
+                                      <span className="text-xs font-semibold text-yellow-700">
+                                        {bookSummary.rating}/10
+                                      </span>
+                                    </div>
+                                    <span className="text-xs text-gray-500">{formatDate(bookSummary.createdAt)}</span>
+                                  </div>
+                                </div>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDeleteSavedSummary(bookSummary.title, bookSummary.author)
+                                  }}
+                                  className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-600"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-center py-8">
+                            <BookMarked className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                            <h3 className="text-lg font-medium text-gray-900">No saved summaries</h3>
+                            <p className="text-gray-500 mt-1">
+                              Click the Save button on any summary to save it to your account
+                            </p>
+                          </div>
+                        )
+                      ) : (
+                        <div className="text-center py-8">
                           <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              removeSummary(bookSummary.title, bookSummary.author)
-                            }}
-                            className="opacity-0 group-hover:opacity-100 transition-opacity text-gray-400 hover:text-red-600"
+                            onClick={() => setIsAuthModalOpen(true)}
+                            className="bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700"
                           >
-                            <Trash2 className="h-4 w-4" />
+                            Sign In to Save Summaries
                           </Button>
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
+                      )}
+                    </TabsContent>
+                  </Tabs>
+                </CardContent>
+              </Card>
 
               {/* Share & Explore More */}
               <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
@@ -412,6 +587,9 @@ export default function BookSummaryApp() {
               </Card>
             </div>
           )}
+
+          {/* Auth Modal */}
+          <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} defaultView="sign-in" />
         </div>
       </div>
     </div>
