@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { LogOut, User, BookMarked } from "lucide-react"
+import { LogOut, BookMarked } from "lucide-react"
 import { AuthModal } from "./auth/auth-modal"
 
 export function UserProfile() {
@@ -83,10 +83,6 @@ export function UserProfile() {
             </div>
           </DropdownMenuLabel>
           <DropdownMenuSeparator />
-          <DropdownMenuItem className="cursor-pointer">
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-          </DropdownMenuItem>
           <DropdownMenuItem
             className="cursor-pointer"
             onClick={() => {
