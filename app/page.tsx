@@ -8,11 +8,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { BookOpen, Sparkles, Target, CheckCircle, Star, Clock, Trash2, Save, BookMarked } from "lucide-react"
 import { summarizeBook, type BookSummary } from "./actions/summarize-book"
-import { saveSummary, getUserSummaries, deleteSummary } from "./actions/book-summaries"
+import { saveSummary, getUserSummaries, deleteSummary, updateSummaryNotes } from "./actions/book-summaries"
 import { useAuth } from "@/context/auth-context"
 import { UserProfile } from "@/components/user-profile"
 import { AuthModal } from "@/components/auth/auth-modal"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { NotesSection } from "@/components/notes-section"
 
 export default function BookSummaryApp() {
   const { user, isLoading: isAuthLoading } = useAuth()
@@ -22,6 +23,9 @@ export default function BookSummaryApp() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("recent")
+
+  const [currentNotes, setCurrentNotes] = useState<string>("")
+  const [isSavingNotes, setIsSavingNotes] = useState(false)
 
   const [state, action, isPending] = useActionState(
     async (prevState: any, formData: FormData) => {
@@ -73,8 +77,9 @@ export default function BookSummaryApp() {
     }
   }, [user])
 
-  const loadSummary = (bookSummary: BookSummary) => {
+  const loadSummary = (bookSummary: BookSummary & { notes?: string }) => {
     setSummary(bookSummary)
+    setCurrentNotes(bookSummary.notes || "")
     window.scrollTo({ top: 0, behavior: "smooth" })
   }
 
@@ -115,6 +120,25 @@ export default function BookSummaryApp() {
       setSavedSummaries(summaries)
     } catch (error) {
       console.error("Failed to delete summary:", error)
+    }
+  }
+
+  const handleSaveNotes = async (notes: string) => {
+    if (!user || !summary) return
+
+    setIsSavingNotes(true)
+    try {
+      await updateSummaryNotes(user.id, summary.title, summary.author, notes)
+      setCurrentNotes(notes)
+
+      // Update the saved summaries to reflect the new notes
+      const summaries = await getUserSummaries(user.id)
+      setSavedSummaries(summaries)
+    } catch (error) {
+      console.error("Failed to save notes:", error)
+      throw error
+    } finally {
+      setIsSavingNotes(false)
     }
   }
 
@@ -347,6 +371,14 @@ export default function BookSummaryApp() {
                   </CardContent>
                 </Card>
               </div>
+
+              {/* Notes Section */}
+              <NotesSection
+                initialNotes={currentNotes}
+                onSaveNotes={handleSaveNotes}
+                isAuthenticated={!!user}
+                onSignInPrompt={() => setIsAuthModalOpen(true)}
+              />
 
               {/* Summaries Tabs */}
               <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">

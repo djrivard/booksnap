@@ -12,6 +12,7 @@ export interface BookSummary {
   callToAction: string
   conclusion: string
   rating: number
+  notes?: string
 }
 
 export async function summarizeBook(formData: FormData): Promise<BookSummary> {

@@ -4,7 +4,7 @@ import { createServerClient } from "@/lib/supabase-server"
 import type { BookSummary } from "./summarize-book"
 import { revalidatePath } from "next/cache"
 
-export async function saveSummary(summary: BookSummary, userId: string) {
+export async function saveSummary(summary: BookSummary, userId: string, notes = "") {
   const supabase = await createServerClient()
 
   const { error } = await supabase.from("book_summaries").insert({
@@ -17,6 +17,7 @@ export async function saveSummary(summary: BookSummary, userId: string) {
     call_to_action: summary.callToAction,
     conclusion: summary.conclusion,
     rating: summary.rating,
+    notes: notes,
   })
 
   if (error) {
@@ -52,8 +53,9 @@ export async function getUserSummaries(userId: string) {
     callToAction: item.call_to_action,
     conclusion: item.conclusion,
     rating: item.rating,
+    notes: item.notes || "",
     createdAt: item.created_at,
-  })) as (BookSummary & { createdAt: string })[]
+  })) as (BookSummary & { notes: string; createdAt: string })[]
 }
 
 export async function deleteSummary(userId: string, title: string, author: string) {
@@ -69,6 +71,25 @@ export async function deleteSummary(userId: string, title: string, author: strin
   if (error) {
     console.error("Error deleting summary:", error)
     throw new Error("Failed to delete summary")
+  }
+
+  revalidatePath("/")
+  return { success: true }
+}
+
+export async function updateSummaryNotes(userId: string, title: string, author: string, notes: string) {
+  const supabase = await createServerClient()
+
+  const { error } = await supabase
+    .from("book_summaries")
+    .update({ notes: notes })
+    .eq("user_id", userId)
+    .eq("title", title)
+    .eq("author", author)
+
+  if (error) {
+    console.error("Error updating notes:", error)
+    throw new Error("Failed to update notes")
   }
 
   revalidatePath("/")
