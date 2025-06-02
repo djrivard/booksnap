@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { BookOpen, Sparkles, Target, CheckCircle, Star, Clock, Trash2, Save, BookMarked } from 'lucide-react'
+import { BookOpen, Sparkles, Target, CheckCircle, Star, Clock, Trash2, Save, BookMarked } from "lucide-react"
 import { summarizeBook, type BookSummary } from "./actions/summarize-book"
 import { saveSummary, getUserSummaries, deleteSummary, updateSummaryNotes } from "./actions/book-summaries"
 import { useAuth } from "@/context/auth-context"
@@ -19,7 +19,7 @@ export default function BookSummaryApp() {
   const { user, isLoading: isAuthLoading } = useAuth()
   const [summary, setSummary] = useState<BookSummary | null>(null)
   const [recentSummaries, setRecentSummaries] = useState<BookSummary[]>([])
-  const [savedSummaries, setSavedSummaries = useState<(BookSummary & { createdAt: string })[]>([])
+  const [savedSummaries, setSavedSummaries] = useState<(BookSummary & { notes: string; createdAt: string })[]>([])
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [activeTab, setActiveTab] = useState<string>("recent")
