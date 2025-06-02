@@ -385,7 +385,7 @@ export default function BookSummaryApp() {
               />
 
               {/* Summaries Tabs */}
-              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm">
+              <Card className="shadow-lg border-0 bg-white/80 backdrop-blur-sm" data-summaries-section>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <BookMarked className="h-5 w-5 text-indigo-600" />
