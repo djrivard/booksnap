@@ -86,10 +86,19 @@ export function UserProfile() {
           <DropdownMenuItem
             className="cursor-pointer"
             onClick={() => {
-              const summariesSection = document.querySelector("[data-summaries-section]")
-              if (summariesSection) {
-                summariesSection.scrollIntoView({ behavior: "smooth" })
+              // First, switch to the saved tab
+              const savedTabTrigger = document.querySelector('[data-state="inactive"][value="saved"]') as HTMLElement
+              if (savedTabTrigger) {
+                savedTabTrigger.click()
               }
+
+              // Then scroll to the summaries section
+              setTimeout(() => {
+                const summariesSection = document.querySelector("[data-summaries-section]")
+                if (summariesSection) {
+                  summariesSection.scrollIntoView({ behavior: "smooth" })
+                }
+              }, 100)
             }}
           >
             <BookMarked className="mr-2 h-4 w-4" />
